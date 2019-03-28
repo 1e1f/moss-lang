@@ -1,18 +1,8 @@
+/// <reference path="../../interfaces/index.d.ts" />
+
 const moo = require('moo');
 
-interface SourceMap {
-    line: number
-    col: number
-}
-
-interface Token extends SourceMap {
-    type: string
-    value: any
-    text: string
-    toString: () => string
-}
-
-const makeToken = (type: string, text: string, sourceMap?: SourceMap, indent?: number) =>
+const makeToken = (type: string, text: string, sourceMap?: Nearley.SourceMap, indent?: number) =>
     ({ ...sourceMap, type, text, value: text, indent, toString: () => text });
 
 const makeSol = (sourceMap: any, indent: number) => {
@@ -20,13 +10,13 @@ const makeSol = (sourceMap: any, indent: number) => {
     //console.log(t);
     return t
 }
-const makeEol = (sourceMap: SourceMap, indent: number) =>
+const makeEol = (sourceMap: Nearley.SourceMap, indent: number) =>
     makeToken('eol', '\n', sourceMap, indent)
 
-const makeIndent = (sourceMap: SourceMap, indent: number) =>
+const makeIndent = (sourceMap: Nearley.SourceMap, indent: number) =>
     makeToken('indent', 'indent', sourceMap, indent)
 
-const makeDedent = (sourceMap: SourceMap, indent: number) =>
+const makeDedent = (sourceMap: Nearley.SourceMap, indent: number) =>
     makeToken('dedent', 'dedent', sourceMap, indent)
 
 const makeSof = () => makeToken('sof', 'sof', { line: 0, col: 0 }, -1);
@@ -55,7 +45,7 @@ function* indented(lexer: any, source: any, info?: any) {
     yield makeSof();
     yield makeSol(null, indent);
 
-    for (let tok: Token; tok = iter.next();) {
+    for (let tok: Nearley.Token; tok = iter.next();) {
         const sourceMap = { line: tok.line, col: tok.col };
 
         if (tok.type === 'eol' || tok.type === 'startRule') {
@@ -172,7 +162,7 @@ const rules = {
     any: /[^\s]/
 };
 
-const printToken = (t: Token) => {
+const printToken = (t: Nearley.Token) => {
     switch (t.type) {
         case "eol": return "}";
         case "eol": return "}";
@@ -230,7 +220,7 @@ class StreamLexer {
         this.generator = indented(this.lexer, source, info);
     }
 
-    formatError = function (token: Token) {
+    formatError = function (token: Nearley.Token) {
         return this.lexer.formatError(token);
     }
 
@@ -245,15 +235,15 @@ class StreamLexer {
     }
 }
 
-export const space = { test: (tok: Token) => tok.type == 'space' };
-export const any = { test: (tok: Token) => tok.type == 'any' };
-export const startRule = { test: (tok: Token) => tok.type == 'startRule' };
-export const indent = { test: (tok: Token) => tok.type == 'eol' };
-export const dedent = { test: (tok: Token) => tok.type == 'dedent' };
-export const sof = { test: (tok: Token) => { console.log('sof?', tok); return tok.type == 'sof' } };
-export const sol = { test: (tok: Token) => tok.type == 'sol' };
-export const eof = { test: (tok: Token) => tok.type == 'eof' };
-export const eol = { test: (tok: Token) => tok.type == 'eol' };
+export const space = { test: (tok: Nearley.Token) => tok.type == 'space' };
+export const any = { test: (tok: Nearley.Token) => tok.type == 'any' };
+export const startRule = { test: (tok: Nearley.Token) => tok.type == 'startRule' };
+export const indent = { test: (tok: Nearley.Token) => tok.type == 'indent' };
+export const dedent = { test: (tok: Nearley.Token) => tok.type == 'dedent' };
+export const sof = { test: (tok: Nearley.Token) => { console.log('sof?', tok); return tok.type == 'sof' } };
+export const sol = { test: (tok: Nearley.Token) => tok.type == 'sol' };
+export const eof = { test: (tok: Nearley.Token) => tok.type == 'eof' };
+export const eol = { test: (tok: Nearley.Token) => tok.type == 'eol' };
 
 export const lexer = new StreamLexer();
 export default lexer;

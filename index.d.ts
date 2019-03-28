@@ -1,4 +1,5 @@
 // index.d.ts
+
 declare module "moss-lang" {
   interface Result {
     data: any,

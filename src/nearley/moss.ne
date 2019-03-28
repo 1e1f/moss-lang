@@ -1,12 +1,19 @@
 @preprocessor typescript
 @lexer lexer
+
 @include "./uri.ne"
-@include "./types.ne"
+@include "./number.ne"
+@include "./string.ne"
+@include "./formatting.ne"
 
 @{%
+import { clone, mapToContext } from 'typed-json-transform';
 import { lexer, any, indent, dedent, eol, sol, eof, sof, startRule, space } from './lexer';
 import { expectedScopeOperator } from './post/errors';
-import { concat, lhs, rhs, back, addPairToMap, reduce, optionalTail } from './post/reducers';
+import { 
+	addPairToMap, addListToMap, pairToMap, listToMap, 
+	kvcToPair, statementToPair,
+	join, concat, operate, unaryOperate, singleWord } from './post/ast';
 %}
 
 start
@@ -14,82 +21,24 @@ start
 	
 rootScope
 	-> map {% id %}
-	| (sol eol "string") multilineString ("\/string") {% ([sol, scope]) => scope %}
 
 scope
-	-> map {% ([layer]) => layer.data %}
+	-> map {% id %}
 
 map
-	-> map mapPairConstructor
-		{% ([_layer, nextMatch]) => {
-			const layer = {
-				data: new Map(_layer.data),
-				context: {}
-			}
-			if (nextMatch && (nextMatch[0] !== undefined)) {
-				addPairToMap(nextMatch, layer.data)
-			}
-			return layer;
-		} %}
-	| map mapList {% ([_layer, list]) => {
-			const layer = {
-				data: new Map(_layer.data),
-				context: {}
-			}
-			if (list && list.length) {
-				for (let i = 0; i < list.length; i++){
-					addPairToMap([i, list[i]], layer.data)
-				}
-			}
-			return layer;
-		} %}
-	| mapPairConstructor
-		{% ([initialMatch]) => {
-			const layer = {
-				data: new Map(),
-				context: {}
-			}
-			if (initialMatch && (initialMatch[0] !== undefined)) {
-				addPairToMap(initialMatch, layer.data)
-			}
-			return layer;
-		} %}
-	| mapList 
-		{% ([list]) => {
-			const layer = {
-				data: new Map(),
-				context: {}
-			}
-			if (list && list.length) {
-				for (let i = 0; i < list.length; i++){
-					addPairToMap([i, list[i]], layer.data)
-				}
-			}
-			return layer;
-		} %}
+	-> map mapPairConstructor {% addPairToMap %}
+	| map mapList {% addListToMap %}
+	| mapPairConstructor {% pairToMap %}
+	| mapList {% listToMap %}
 
 mapList 
 	-> (sol "-<" endLine) list "\/-<" {% ([prefix, list]) => list %}
 		
 mapPairConstructor
 	# nested explicitly declared list
-	-> key ((space constraintMap) | space) ("-<" pushScope) list "\/-<" popScope
+	-> key inlineContext ("-<" pushScope) list "\/-<" popScope
   		{% ([key, context, mode, scope]) => {
-			if (context){
-				return [key, scope, {multiLineString: true, ...context[1]}]
-			} else {
-			  return [key, scope, {multiLineString: true}]
-			}
-		} %}
-
-	# multiline string
-	| key ((space constraintMap) | space) (eol "text" indent) multilineString popScope "\/text"
-  		{% ([key, context, mode, scope]) => {
-			if (context){
-				return [key, scope, {multiLineString: true, ...context[1]}]
-			} else {
-			  return [key, scope, {multiLineString: true}]
-			}
+			return kvcToPair(key, [scope[0], {...scope[1], ...mapToContext(context)}]]);
 		} %}
 
 	# nested map
@@ -99,29 +48,30 @@ mapPairConstructor
 		} %}
 	
 	# explicit map pair, rhs is a map
-	| key ((space constraintMap) | space) "{" scope "}" endLine
-  		{% ([key, context, bracket, scope]) => {
+	| key inlineContext "{" scope "}" endLine
+  		{% ([key, c_, bracket, scope]) => {
 				return [key, scope]
 			} %}
 			
 	# default map pair, rhs is a statement
-	| key ((space constraintMap) | space) statement mapTerminator
-  		{% ([key, context, statement]) => {
-				console.log('pair', [key, statement])
-				return [key, statement]
-			} %}
+	| key inlineContext statement mapTerminator
+  		{% ([key, c, s]) => kvcToPair(key, s, c) %}
 
 	# default simple value
-	| (sol | space) (constraintMap):? statement mapTerminator
-  		{% ([prefix, constraintMap, statement]) => {
-			return [statement, true]
-		}%}
+	| (sol | space) context:? statement mapTerminator
+  		{% ([_, c, s]) => statementToPair(s, c) %}
 
 	| sol eol {% () => null %}
 	| sol comment {% () => null %}
 	# error cases
 	| literal pushScope scope
   		{% expectedScopeOperator %}
+
+inlineContext
+	-> space context {% ([_, d]) => {
+		return d;
+	} %}
+	| space {% () => null %}
 
 mapTerminator
 	-> (" " | "," | endLine) {% id %}
@@ -150,21 +100,21 @@ listConstructor
 			  return scope		
 		} %}
 		
-	| key ((space constraintMap) | space) "{" scope "}" endLine
+	| key ((space context) | space) "{" scope "}" endLine
   		{% ([key, context, bracket, scope]) => {
 				return scope
 			} %}
 			
 	# default map pair, rhs is a statement
-	| key ((space constraintMap) | space) statement listTerminator
+	| key ((space context) | space) statement listTerminator
   		{% ([key, context, statement]) => {
 				return statement
 			} %}
 	
 	# default simple value
-	| (sol | space) (constraintMap):? statement listTerminator
-  		{% ([prefix, constraintMap, statement]) => {
-			return statement
+	| (sol | space) (context):? statement listTerminator
+  		{% ([prefix, c_, [r, r_]]) => {
+			return [r, {...r_, ...c_}];
 		}%}
 		
 	| sol eol {% () => null %}
@@ -202,44 +152,34 @@ stringLine
 		} %}
 
 
-pushTypedScope ->
-	space constraintMap indent 
-		{% ([space, constraintMap]) => constraintMap %}
+pushTypedScope 
+	-> space context indent 
+		{% ([space, context]) => context %}
 	| pushScope {% id %}
 
 
-constraintMap
-	-> constraintMap constraint
-		{% ([map, nextMatch]) => {
-			if (nextMatch) {
-				addPairToMap(nextMatch, map);
-			}
-			return map;
-		} %}
+context
+	-> context constraint
+		{% addPairToMap %}
 	| constraint
-		{% ([initialMatch]) => {
-			const map = new Map();
-			if (initialMatch) {
-				addPairToMap(initialMatch, map);
-			}
-			return map;
-		} %}
+		{% pairToMap %}
 
 constraint
-	-> "@" "{" nestedScope sol "}" (space | endLine)
+	-> "\\" "{" nestedScope sol "}" (space | endLine)
 		{% ([directive, bracket, scope]) => scope %}
-	| "@" literal "{" scope "}" (space | endLine)
-		{% ([directive, literal, bracket, scope]) => [literal, scope] %}
-	| "@" literal (space | endLine) {% ([directive, property]) => {
-			return [property, true]
-		}%}
+	| "\\" literal "{" map "}" (space | endLine)
+		{% ([directive, key, bracket, map]) => {
+			return kvcToPair(key, map) 
+		} %}
+	| "\\" literal (space | endLine)
+		{% ([directive, property]) => statementToPair(property) %}
 
 # Map
 key
-	-> (sol | space) keyExpression ":" {% ([pre, key]) => key %}
+	-> (sol | space) keyExpression ":" {% ([_, k]) => k %}
 
 keyExpression
-	-> ( "=" | "+" | "|" | "&" | "^" | "-" ) space statement {% reduce %}
+	-> ( "=" | "+" | "|" | "&" | "^" | "-" ) space statement {% join %}
 	| concat {% id %}
 
 # statement
@@ -249,28 +189,27 @@ statement
 # Operators
 
 concat
-	-> concat space boolean {% reduce %}
+	-> concat space boolean {% concat %}
 	| boolean {% id %}
 
 boolean
-	-> boolean space ( "n" | "|" ) space add {% reduce %}
+	-> boolean space ( "n" | "|" ) space add {% operate %}
 	| add {% id %}
 
 add
-	-> add space ( "+"|"-" ) space multiply {% reduce %}
+	-> add space ( "+"|"-" ) space multiply {% operate %}
 	| multiply {% id %}
 
 multiply
-	-> multiply space ("*"|"/") space unaryPrefix {% reduce %}
+	-> multiply space ("*"|"/") space unaryPrefix {% operate %}
 	| unaryPrefix {% id %}
 
 unaryPrefix
-	-> "+" group {% reduce %}
-	| "-" group {% reduce %}
-	| "!" group {% reduce %}
+	-> "+" group {% unaryOperate %}
+	| "-" group {% unaryOperate %}
+	| "!" group {% unaryOperate %}
 	| group {% id %}
 
 group
-	-> "(" concat ")" {% reduce %}
-	| "$" "{" concat "}" {% reduce %}
+	-> "(" concat ")" {% ([_, g]) => g %}
 	| literal {% id %}

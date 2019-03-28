@@ -5,108 +5,108 @@ uri
 	| authority {% id %}
 
 url
-	-> urlDomainScheme authority {% reduce %}
-	| urlScheme uriPathComponent {% reduce %}
-	| urlScheme urlPath {% reduce %}
+	-> urlDomainScheme authority {% join %}
+	| urlScheme uriPathComponent {% join %}
+	| urlScheme urlPath {% join %}
 
 urlDomainScheme
-	-> urlScheme "/" "/" {% reduce %}
+	-> urlScheme "/" "/" {% join %}
 
 urlSchemes
-	-> urlSchemes urlScheme {% reduce %}
+	-> urlSchemes urlScheme {% join %}
 	| urlScheme {% id %}
 
 urlScheme
-	-> domainComponent ":" {% reduce %}
+	-> domainComponent ":" {% join %}
 
 authority
-	-> urlCredentials "@" _authority {% reduce %}
-	| _authority {% reduce %}
+	-> urlCredentials "@" _authority {% join %}
+	| _authority {% join %}
 
 _authority
-	-> uriDomainComponent uriPathComponent:? uriQueries:? uriFragment:? {% reduce %}
+	-> uriDomainComponent uriPathComponent:? uriQueries:? uriFragment:? {% join %}
 
 uriQueries 
-	-> uriQueries uriQuery {% reduce %}
+	-> uriQueries uriQuery {% join %}
 	| uriQuery {% id %}
 
 uriPathComponent 
-	-> "/" urlPath {% reduce %}
+	-> "/" urlPath {% join %}
 	| "/" {% ([tok]) => tok.value %}
 
 urlCredentials
-	-> urlCredentials ":" password {% reduce %}
+	-> urlCredentials ":" password {% join %}
 	| email {% id %}
 	| subdomain {% id %}
 
 urlPath
-	-> urlPath "/" urlPathName {% reduce %}
-	| urlPath "/" {% reduce %}
+	-> urlPath "/" urlPathName {% join %}
+	| urlPath "/" {% join %}
 	| urlPathName {% id %}
 
 urlPathName ->
-	urlPathName "." urlPathWord {% reduce %}
+	urlPathName "." urlPathWord {% join %}
 	| urlPathWord {% id %}
 	
 urlPathWord
-	-> urlPathWord urlPathChar {% reduce %}
+	-> urlPathWord urlPathChar {% join %}
 	| urlPathChar {% id %}
 	
 urlPathChar
 	-> [^ ^/^.^?^;] {% ([tok]) => tok.value %}
 
 filePath ->
-	filePath "/" fileName {% reduce %}
+	filePath "/" fileName {% join %}
 	| fileName {% id %}
 
 fileName ->
-	fileName "." fileWord {% reduce %}
+	fileName "." fileWord {% join %}
 	| fileWord {% id %}
 
 fileWord
-	-> fileWord fileChar {% reduce %}
+	-> fileWord fileChar {% join %}
 	| fileChar {% id %}
 
 fileChar
 	-> [^ ^/^.] {% ([tok]) => tok.value %}
 
 password
-	-> urlSafePlusEncoded {% reduce %}
+	-> urlSafePlusEncoded {% join %}
 
 email
-	-> subdomain "@" domain {% reduce %}
+	-> subdomain "@" domain {% join %}
 
 uriDomainComponent
-	-> uriDomainComponent uriPortComponent {% reduce %}
-	| domain {% reduce %}
-	| "[" ipv6 "]" {% reduce %}
+	-> uriDomainComponent uriPortComponent {% join %}
+	| domain {% join %}
+	| "[" ipv6 "]" {% join %}
 	| ipv4 {% id %}
 
 matchSeven[x] 
-	-> $x $x $x $x $x $x $x {% reduce %}
+	-> $x $x $x $x $x $x $x {% join %}
 
 matchOneToSeven[x] 
-	-> $x $x $x $x $x $x $x {% reduce %}
-	| $x $x $x $x $x $x {% reduce %}
-	| $x $x $x $x $x {% reduce %}
-	| $x $x $x $x {% reduce %}
-	| $x $x $x $x {% reduce %}
-	| $x $x $x {% reduce %}
-	| $x $x {% reduce %}
-	| $x {% reduce %}
+	-> $x $x $x $x $x $x $x {% join %}
+	| $x $x $x $x $x $x {% join %}
+	| $x $x $x $x $x {% join %}
+	| $x $x $x $x {% join %}
+	| $x $x $x $x {% join %}
+	| $x $x $x {% join %}
+	| $x $x {% join %}
+	| $x {% join %}
 	
 ipv6
-	-> matchSeven[ipv6Group] ipv6Number {% reduce %}
-	| matchOneToSeven[ipv6Group] ":" ipv6Number {% reduce %}
+	-> matchSeven[ipv6Group] ipv6Number {% join %}
+	| matchOneToSeven[ipv6Group] ":" ipv6Number {% join %}
 
 matchOneToFour[x]
-	-> $x $x $x $x {% reduce %}
-	| $x $x $x {% reduce %}
-	| $x $x {% reduce %}
-	| $x {% reduce %}
+	-> $x $x $x $x {% join %}
+	| $x $x $x {% join %}
+	| $x $x {% join %}
+	| $x {% join %}
 
 ipv6Group
-	-> ipv6Number ":" {% reduce %}
+	-> ipv6Number ":" {% join %}
 
 ipv6Number
 	-> matchOneToFour[hexDigit]
@@ -115,10 +115,10 @@ ipv4
 	-> ipv4Group "." ipv4Group "." ipv4Group "." ipv4Group
 
 ipv4Group
-	-> d2 d5 d0_5 {% reduce %}
-	| d2 d0_4 d0_9 {% reduce %}
-	| d1 d0_9 d0_9 {% reduce %}
-	| d0_9 d0_9 {% reduce %}
+	-> d2 d5 d0_5 {% join %}
+	| d2 d0_4 d0_9 {% join %}
+	| d1 d0_9 d0_9 {% join %}
+	| d0_9 d0_9 {% join %}
 	| d0_9 {% id %}
 
 d1 -> "1" {% ([tok]) => tok %}
@@ -129,13 +129,13 @@ d0_5 -> [0-5] {% ([tok]) => tok %}
 d0_9 -> [0-9] {% ([tok]) => tok %}
 
 domain
-	-> subdomain "." domainComponent {% reduce %}
+	-> subdomain "." domainComponent {% join %}
 
 uriPortComponent
-	-> ":" number {% reduce %}
+	-> ":" number {% join %}
 
 subdomain ->
-	domainComponent "." subdomain {% reduce %}
+	domainComponent "." subdomain {% join %}
 	| domainComponent {% id %}
 
 # ! $ & ' ( ) * + , ; = 
@@ -143,28 +143,19 @@ subdomain ->
 # in the user information, host, and path as delimiters.
 
 uriQuery
-  -> "?" queryList {% reduce %}
+  -> "?" queryList {% join %}
 
 queryList
-  -> queryList "&" queryFragment {% reduce %}
+  -> queryList "&" queryFragment {% join %}
   | queryFragment {% id %}
 
 queryFragment
-  -> queryFragment "=" urlSafePlusEncoded {% reduce %}
+  -> queryFragment "=" urlSafePlusEncoded {% join %}
   | urlSafePlusEncoded {% id %}
 
 uriFragment
-  -> "#" queryList {% reduce %}
+  -> "#" queryList {% join %}
 
 domainComponent
 	-> [a-zA-Z] [a-zA-Z0-9\-]:*
-		{% optionalTail %}
-
-urlSafePlusEncoded
-	-> urlSafePlusEncoded urlSafePlusEncodedChars {% reduce %}
-	| urlSafePlusEncodedChars {% id %}
-
-urlSafePlusEncodedChars
-	-> "%" hexDigit hexDigit {% reduce %}
-	| "&" "a" "m" "p" ";" {% reduce %}
-	| urlSafeChar {% id %}
+		{% singleWord %}
