@@ -38,7 +38,7 @@ mapPairConstructor
 	# nested explicitly declared list
 	-> key inlineContext ("-<" pushScope) list "\/-<" popScope
   		{% ([key, context, mode, scope]) => {
-			return kvcToPair(key, [scope[0], {...scope[1], ...mapToContext(context)}]]);
+			return kvcToPair(key, [scope[0]], {...scope[1], ...mapToContext(context)});
 		} %}
 
 	# nested map

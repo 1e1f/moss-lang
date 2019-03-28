@@ -196,11 +196,8 @@ export var ParserRules: NearleyRule[] = [
     {"name": "mapList$subexpression$1", "symbols": ["sol", {"literal":"-<"}, "endLine"]},
     {"name": "mapList", "symbols": ["mapList$subexpression$1", "list", {"literal":"/-<"}], "postprocess": ([prefix, list]) => list},
     {"name": "mapPairConstructor$subexpression$1", "symbols": [{"literal":"-<"}, "pushScope"]},
-    {"name": "mapPairConstructor", "symbols": ["key", "inlineContext", "mapPairConstructor$subexpression$1", "list", {"literal":"/-<"}, "popScope"], "postprocess":  ([key, c_, mode, scope]) => {
-        	  if (c_){
-        	  return [key, [scope[0], {...scope[1], ...mapToContext(c_[0])}]];
-        	  }
-        	  return [key, [scope[0], {...scope[1]}]];
+    {"name": "mapPairConstructor", "symbols": ["key", "inlineContext", "mapPairConstructor$subexpression$1", "list", {"literal":"/-<"}, "popScope"], "postprocess":  ([key, context, mode, scope]) => {
+        	return kvcToPair(key, [scope[0]], {...scope[1], ...mapToContext(context)});
         } },
     {"name": "mapPairConstructor", "symbols": ["key", "pushTypedScope", "scope", "popScope"], "postprocess":  ([key, context, scope]) => {
         	  return [key, scope]
