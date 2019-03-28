@@ -8,7 +8,7 @@
         "email": "structuresound@gmail.com"
     },
     "engines": {
-        "node": ">= 10"
+        "node": ">= 8"
     },
     "repository": {
         "type": "git",
@@ -34,13 +34,18 @@
     },
     "Keywords": [],
     "devDependencies": {
+        "@babel/core": "^7.4.0",
+        "@babel/plugin-proposal-class-properties": "^7.4.0",
+        "@babel/plugin-proposal-decorators": "^7.4.0",
+        "@babel/preset-typescript": "^7.3.3",
         "@types/nearley": "^2.11.0",
         "@types/node": "^10",
+        "babel-loader": "^8.0.5",
         "nearley": "^2.16.0",
         "typescript": "3.2.2"
     },
     "dependencies": {
         "moo": "^0.5.0",
-        "typed-json-transform": "^0.24.3"
+        "typed-json-transform": "^0.24.6"
     }
 }
