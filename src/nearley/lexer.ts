@@ -216,7 +216,7 @@ class StreamLexer {
     }
 
     reset = function (source: string, info?: any) {
-        // console.log('tokens', this.getTokenTypes(source))
+        console.log('tokens', this.getTokenTypes(source))
         this.generator = indented(this.lexer, source, info);
     }
 

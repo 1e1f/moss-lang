@@ -26,13 +26,14 @@ export const _addPair = ([l, l_]: ASTPair, [[k, k_], [v, v_]]: Nearley.TokenList
 }
 
 export const listToMap = ([r]: Nearley.TokenList) => {
+    const [list, context] = r;
     const l = [
         new Map(),
-        { map: true }
+        { map: true, ...context }
     ];
-    if (r && r.length) {
-        for (let i = 0; i < r.length; i++) {
-            _addPair(l, [i, r[i]])
+    if (list && list.length) {
+        for (let i = 0; i < list.length; i++) {
+            _addPair(l, [i, list[i]])
         }
     }
     return l;
@@ -54,11 +55,14 @@ export const pairToMap = ([r]: Nearley.TokenList) => {
     return l;
 }
 
-export const kvcToPair = ([k, k_]: any, statement: any, c_: any) => {
-    if (c_) {
-        const context = mapToObject(c_[0]);
+export const kvcToPair = ([k, k_]: any, statement: any, cPair: any) => {
+    if (cPair) {
+        const [c, c_] = cPair;
+        console.log({cPair});
+        const context = mapToObject(c);
         return [[k, { key: true, ...k_ }], [statement[0], { ...statement[1], ...context }]];
     }
+    console.log('no context', statement);
     return [[k, { key: true, ...k_ }], statement];
 }
 
@@ -69,9 +73,12 @@ export const statementToPair = ([s, s_]: any, c_: any) => {
 
 export const addListToMap = ([_l, r]: Nearley.TokenList) => {
     const l = clone(_l);
-    if (r && r.length) {
-        for (let i = 0; i < r.length; i++) {
-            _addPair(l, [[i], r[i]])
+    const [list, context] = r;
+    console.log('add list to map', list);
+    l.context = { ...l.context, ...context };
+    if (list && list.length) {
+        for (let i = 0; i < list.length; i++) {
+            _addPair(l, [[i], list[i]])
         }
     }
     return l;

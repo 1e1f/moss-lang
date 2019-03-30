@@ -8,7 +8,7 @@ export const parse = (text: string) => {
 
 export const load = (text: string) => {
     const parsed = parse(text);
-    return parsed.results[0];
+    return parsed.results;
 }
 
 class ParserState {
@@ -33,7 +33,6 @@ export class MonacoTokensProvider {
         // console.log(state);
         // console.log('tokenize', line, state)
         const { results, lexer } = this.parser.feed(line);
-        console.log(lexer);
-        return { endState: state, tokens: results[0] };
+        return { endState: state, tokens: results };
     }
 }

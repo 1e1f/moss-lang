@@ -7,7 +7,7 @@
 @include "./formatting.ne"
 
 @{%
-import { clone, mapToContext } from 'typed-json-transform';
+import { clone, mapToObject } from 'typed-json-transform';
 import { lexer, any, indent, dedent, eol, sol, eof, sof, startRule, space } from './lexer';
 import { expectedScopeOperator } from './post/errors';
 import { 
@@ -31,26 +31,29 @@ map
 	| mapPairConstructor {% pairToMap %}
 	| mapList {% listToMap %}
 
-mapList 
-	-> (sol "-<" endLine) list "\/-<" {% ([prefix, list]) => list %}
+mapList
+	-> sol context:? "-<" endLine list "\/-<" {% ([prefix, context, rule, dedent, list]) => context ? [list, context] : [ list ] %}
 		
 mapPairConstructor
 	# nested explicitly declared list
 	-> key inlineContext ("-<" pushScope) list "\/-<" popScope
-  		{% ([key, context, mode, scope]) => {
-			return kvcToPair(key, [scope[0]], {...scope[1], ...mapToContext(context)});
+  		{% ([key, context, mode, list]) => {
+			if (context){
+				return kvcToPair(key, list, context);
+			}
+			return kvcToPair(key, list, {list: true});
 		} %}
 
 	# nested map
 	| key pushTypedScope scope popScope
-  		{% ([key, context, scope]) => {
-			  return [key, scope]
+  		{% ([key, c, s]) => {
+			return kvcToPair(key, s, c)
 		} %}
 	
 	# explicit map pair, rhs is a map
 	| key inlineContext "{" scope "}" endLine
-  		{% ([key, c_, bracket, scope]) => {
-				return [key, scope]
+  		{% ([key, context, bracket, scope]) => {
+			  return kvcToPair(key, scope, context)
 			} %}
 			
 	# default map pair, rhs is a statement
@@ -71,7 +74,7 @@ inlineContext
 	-> space context {% ([_, d]) => {
 		return d;
 	} %}
-	| space {% () => null %}
+	| space {% id %}
 
 mapTerminator
 	-> (" " | "," | endLine) {% id %}
@@ -152,7 +155,7 @@ stringLine
 		} %}
 
 
-pushTypedScope 
+pushTypedScope
 	-> space context indent 
 		{% ([space, context]) => context %}
 	| pushScope {% id %}
@@ -169,7 +172,7 @@ constraint
 		{% ([directive, bracket, scope]) => scope %}
 	| "\\" literal "{" map "}" (space | endLine)
 		{% ([directive, key, bracket, map]) => {
-			return kvcToPair(key, map) 
+			return [key, map] 
 		} %}
 	| "\\" literal (space | endLine)
 		{% ([directive, property]) => statementToPair(property) %}

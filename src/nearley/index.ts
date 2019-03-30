@@ -4,7 +4,7 @@
 // @ts-ignore
 function id(d: any[]): any { return d[0]; }
 
-import { clone, mapToContext } from 'typed-json-transform';
+import { clone, mapToObject } from 'typed-json-transform';
 import { lexer, any, indent, dedent, eol, sol, eof, sof, startRule, space } from './lexer';
 import { expectedScopeOperator } from './post/errors';
 import { 
@@ -193,17 +193,21 @@ export var ParserRules: NearleyRule[] = [
     {"name": "map", "symbols": ["map", "mapList"], "postprocess": addListToMap},
     {"name": "map", "symbols": ["mapPairConstructor"], "postprocess": pairToMap},
     {"name": "map", "symbols": ["mapList"], "postprocess": listToMap},
-    {"name": "mapList$subexpression$1", "symbols": ["sol", {"literal":"-<"}, "endLine"]},
-    {"name": "mapList", "symbols": ["mapList$subexpression$1", "list", {"literal":"/-<"}], "postprocess": ([prefix, list]) => list},
+    {"name": "mapList$ebnf$1", "symbols": ["context"], "postprocess": id},
+    {"name": "mapList$ebnf$1", "symbols": [], "postprocess": () => null},
+    {"name": "mapList", "symbols": ["sol", "mapList$ebnf$1", {"literal":"-<"}, "endLine", "list", {"literal":"/-<"}], "postprocess": ([prefix, context, rule, dedent, list]) => context ? [list, context] : [ list ]},
     {"name": "mapPairConstructor$subexpression$1", "symbols": [{"literal":"-<"}, "pushScope"]},
-    {"name": "mapPairConstructor", "symbols": ["key", "inlineContext", "mapPairConstructor$subexpression$1", "list", {"literal":"/-<"}, "popScope"], "postprocess":  ([key, context, mode, scope]) => {
-        	return kvcToPair(key, [scope[0]], {...scope[1], ...mapToContext(context)});
+    {"name": "mapPairConstructor", "symbols": ["key", "inlineContext", "mapPairConstructor$subexpression$1", "list", {"literal":"/-<"}, "popScope"], "postprocess":  ([key, context, mode, list]) => {
+        	if (context){
+        		return kvcToPair(key, list, context);
+        	}
+        	return kvcToPair(key, list, {list: true});
         } },
-    {"name": "mapPairConstructor", "symbols": ["key", "pushTypedScope", "scope", "popScope"], "postprocess":  ([key, context, scope]) => {
-        	  return [key, scope]
+    {"name": "mapPairConstructor", "symbols": ["key", "pushTypedScope", "scope", "popScope"], "postprocess":  ([key, c, s]) => {
+        	return kvcToPair(key, s, c)
         } },
-    {"name": "mapPairConstructor", "symbols": ["key", "inlineContext", {"literal":"{"}, "scope", {"literal":"}"}, "endLine"], "postprocess":  ([key, c_, bracket, scope]) => {
-        	return [key, scope]
+    {"name": "mapPairConstructor", "symbols": ["key", "inlineContext", {"literal":"{"}, "scope", {"literal":"}"}, "endLine"], "postprocess":  ([key, context, bracket, scope]) => {
+          return kvcToPair(key, scope, context)
         } },
     {"name": "mapPairConstructor", "symbols": ["key", "inlineContext", "statement", "mapTerminator"], "postprocess": ([key, c, s]) => kvcToPair(key, s, c)},
     {"name": "mapPairConstructor$subexpression$2", "symbols": ["sol"]},
@@ -217,7 +221,7 @@ export var ParserRules: NearleyRule[] = [
     {"name": "inlineContext", "symbols": ["space", "context"], "postprocess":  ([_, d]) => {
         	return d;
         } },
-    {"name": "inlineContext", "symbols": ["space"], "postprocess": () => null},
+    {"name": "inlineContext", "symbols": ["space"], "postprocess": id},
     {"name": "mapTerminator$subexpression$1", "symbols": [{"literal":" "}]},
     {"name": "mapTerminator$subexpression$1", "symbols": [{"literal":","}]},
     {"name": "mapTerminator$subexpression$1", "symbols": ["endLine"]},
@@ -298,7 +302,7 @@ export var ParserRules: NearleyRule[] = [
     {"name": "constraint$subexpression$2", "symbols": ["space"]},
     {"name": "constraint$subexpression$2", "symbols": ["endLine"]},
     {"name": "constraint", "symbols": [{"literal":"\\"}, "literal", {"literal":"{"}, "map", {"literal":"}"}, "constraint$subexpression$2"], "postprocess":  ([directive, key, bracket, map]) => {
-        	return kvcToPair(key, map) 
+        	return [key, map] 
         } },
     {"name": "constraint$subexpression$3", "symbols": ["space"]},
     {"name": "constraint$subexpression$3", "symbols": ["endLine"]},
