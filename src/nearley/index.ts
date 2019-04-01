@@ -9,8 +9,8 @@ import { lexer, any, indent, dedent, eol, sol, eof, sof, startRule, space } from
 import { expectedScopeOperator } from './post/errors';
 import { 
 	addPairToMap, addListToMap, pairToMap, listToMap, 
-	kvcToPair, statementToPair,
-	join, concat, operate, unaryOperate, singleWord } from './post/ast';
+	kvcToPair, statementToPair, nuller,
+	join, fork, operate, unaryOperate, singleWord } from './post/ast';
 
 export interface Token { value: any; [key: string]: any };
 
@@ -33,6 +33,33 @@ export type NearleySymbol = string | { literal: any } | { test: (token: any) => 
 export var Lexer: Lexer | undefined = lexer;
 
 export var ParserRules: NearleyRule[] = [
+    {"name": "statement", "symbols": ["concat"], "postprocess": id},
+    {"name": "concat", "symbols": ["concat", "space", "boolean"], "postprocess": fork},
+    {"name": "concat", "symbols": ["boolean"], "postprocess": id},
+    {"name": "boolean$subexpression$1", "symbols": [{"literal":"n"}]},
+    {"name": "boolean$subexpression$1", "symbols": [{"literal":"|"}]},
+    {"name": "boolean", "symbols": ["boolean", "space", "boolean$subexpression$1", "space", "add"], "postprocess": operate},
+    {"name": "boolean", "symbols": ["add"], "postprocess": id},
+    {"name": "add$subexpression$1", "symbols": [{"literal":"+"}]},
+    {"name": "add$subexpression$1", "symbols": [{"literal":"-"}]},
+    {"name": "add", "symbols": ["add", "space", "add$subexpression$1", "space", "multiply"], "postprocess": operate},
+    {"name": "add", "symbols": ["multiply"], "postprocess": id},
+    {"name": "multiply$subexpression$1", "symbols": [{"literal":"*"}]},
+    {"name": "multiply$subexpression$1", "symbols": [{"literal":"/"}]},
+    {"name": "multiply", "symbols": ["multiply", "space", "multiply$subexpression$1", "space", "unaryPrefix"], "postprocess": operate},
+    {"name": "multiply", "symbols": ["unaryPrefix"], "postprocess": id},
+    {"name": "unaryPrefix", "symbols": [{"literal":"+"}, "group"], "postprocess": unaryOperate},
+    {"name": "unaryPrefix", "symbols": [{"literal":"-"}, "group"], "postprocess": unaryOperate},
+    {"name": "unaryPrefix", "symbols": [{"literal":"!"}, "group"], "postprocess": unaryOperate},
+    {"name": "unaryPrefix", "symbols": ["group"], "postprocess": id},
+    {"name": "group", "symbols": [{"literal":"("}, "concat", {"literal":")"}], "postprocess": ([_, g]) => g},
+    {"name": "group", "symbols": ["pair"], "postprocess": id},
+    {"name": "pair", "symbols": ["context", "literal"], "postprocess": ([c, [r, r_]]) => [r, {...r_, ...c}]},
+    {"name": "pair", "symbols": ["literal"], "postprocess": id},
+    {"name": "literal", "symbols": ["string"], "postprocess": ([v]) => [v, {string: true}]},
+    {"name": "literal", "symbols": ["singleWord"], "postprocess": ([v]) => [v, {string: true}]},
+    {"name": "literal", "symbols": ["uri"], "postprocess": ([v]) => [v, {uri: true}]},
+    {"name": "literal", "symbols": ["number"], "postprocess": ([v]) => [v, {number: true}]},
     {"name": "uri", "symbols": ["url"], "postprocess": id},
     {"name": "uri", "symbols": ["authority"], "postprocess": id},
     {"name": "url", "symbols": ["urlDomainScheme", "authority"], "postprocess": join},
@@ -137,10 +164,6 @@ export var ParserRules: NearleyRule[] = [
     {"name": "urlSafePlusEncodedChars", "symbols": [{"literal":"%"}, "hexDigit", "hexDigit"], "postprocess": join},
     {"name": "urlSafePlusEncodedChars", "symbols": [{"literal":"&"}, {"literal":"a"}, {"literal":"m"}, {"literal":"p"}, {"literal":";"}], "postprocess": join},
     {"name": "urlSafePlusEncodedChars", "symbols": ["urlSafeChar"], "postprocess": id},
-    {"name": "literal", "symbols": ["string"], "postprocess": ([v]) => [v, {string: true}]},
-    {"name": "literal", "symbols": ["singleWord"], "postprocess": ([v]) => [v, {string: true}]},
-    {"name": "literal", "symbols": ["uri"], "postprocess": ([v]) => [v, {uri: true}]},
-    {"name": "literal", "symbols": ["number"], "postprocess": ([v]) => [v, {number: true}]},
     {"name": "singleWord$ebnf$1", "symbols": []},
     {"name": "singleWord$ebnf$1", "symbols": ["singleWord$ebnf$1", /[a-zA-Z0-9$_]/], "postprocess": (d) => d[0].concat([d[1]])},
     {"name": "singleWord", "symbols": [/[a-zA-Z$_]/, "singleWord$ebnf$1"], "postprocess": singleWord},
@@ -212,16 +235,14 @@ export var ParserRules: NearleyRule[] = [
     {"name": "mapPairConstructor", "symbols": ["key", "inlineContext", "statement", "mapTerminator"], "postprocess": ([key, c, s]) => kvcToPair(key, s, c)},
     {"name": "mapPairConstructor$subexpression$2", "symbols": ["sol"]},
     {"name": "mapPairConstructor$subexpression$2", "symbols": ["space"]},
-    {"name": "mapPairConstructor$ebnf$1", "symbols": ["context"], "postprocess": id},
-    {"name": "mapPairConstructor$ebnf$1", "symbols": [], "postprocess": () => null},
-    {"name": "mapPairConstructor", "symbols": ["mapPairConstructor$subexpression$2", "mapPairConstructor$ebnf$1", "statement", "mapTerminator"], "postprocess": ([_, c, s]) => statementToPair(s, c)},
-    {"name": "mapPairConstructor", "symbols": ["sol", "eol"], "postprocess": () => null},
-    {"name": "mapPairConstructor", "symbols": ["sol", "comment"], "postprocess": () => null},
+    {"name": "mapPairConstructor", "symbols": ["mapPairConstructor$subexpression$2", "statement", "mapTerminator"], "postprocess": ([_, s]) => statementToPair(s)},
+    {"name": "mapPairConstructor", "symbols": ["sol", "eol"], "postprocess": nuller},
+    {"name": "mapPairConstructor", "symbols": ["sol", "comment"], "postprocess": nuller},
     {"name": "mapPairConstructor", "symbols": ["literal", "pushScope", "scope"], "postprocess": expectedScopeOperator},
     {"name": "inlineContext", "symbols": ["space", "context"], "postprocess":  ([_, d]) => {
         	return d;
         } },
-    {"name": "inlineContext", "symbols": ["space"], "postprocess": id},
+    {"name": "inlineContext", "symbols": ["space"], "postprocess": nuller},
     {"name": "mapTerminator$subexpression$1", "symbols": [{"literal":" "}]},
     {"name": "mapTerminator$subexpression$1", "symbols": [{"literal":","}]},
     {"name": "mapTerminator$subexpression$1", "symbols": ["endLine"]},
@@ -261,8 +282,8 @@ export var ParserRules: NearleyRule[] = [
     {"name": "listConstructor", "symbols": ["listConstructor$subexpression$3", "listConstructor$ebnf$1", "statement", "listTerminator"], "postprocess":  ([prefix, c_, [r, r_]]) => {
         	return [r, {...r_, ...c_}];
         }},
-    {"name": "listConstructor", "symbols": ["sol", "eol"], "postprocess": () => null},
-    {"name": "listConstructor", "symbols": ["sol", "comment"], "postprocess": () => null},
+    {"name": "listConstructor", "symbols": ["sol", "eol"], "postprocess": nuller},
+    {"name": "listConstructor", "symbols": ["sol", "comment"], "postprocess": nuller},
     {"name": "multilineString$ebnf$1", "symbols": []},
     {"name": "multilineString$ebnf$1", "symbols": ["multilineString$ebnf$1", "stringLine"], "postprocess": (d) => d[0].concat([d[1]])},
     {"name": "multilineString", "symbols": ["stringLine", "multilineString$ebnf$1"], "postprocess":  ([head, tail]) => {
@@ -293,7 +314,7 @@ export var ParserRules: NearleyRule[] = [
         	return [sol.indent, string];
         } },
     {"name": "pushTypedScope", "symbols": ["space", "context", "indent"], "postprocess": ([space, context]) => context},
-    {"name": "pushTypedScope", "symbols": ["pushScope"], "postprocess": id},
+    {"name": "pushTypedScope", "symbols": ["pushScope"], "postprocess": nuller},
     {"name": "context", "symbols": ["context", "constraint"], "postprocess": addPairToMap},
     {"name": "context", "symbols": ["constraint"], "postprocess": pairToMap},
     {"name": "constraint$subexpression$1", "symbols": ["space"]},
@@ -316,29 +337,8 @@ export var ParserRules: NearleyRule[] = [
     {"name": "keyExpression$subexpression$1", "symbols": [{"literal":"&"}]},
     {"name": "keyExpression$subexpression$1", "symbols": [{"literal":"^"}]},
     {"name": "keyExpression$subexpression$1", "symbols": [{"literal":"-"}]},
-    {"name": "keyExpression", "symbols": ["keyExpression$subexpression$1", "space", "statement"], "postprocess": join},
-    {"name": "keyExpression", "symbols": ["concat"], "postprocess": id},
-    {"name": "statement", "symbols": ["concat"], "postprocess": id},
-    {"name": "concat", "symbols": ["concat", "space", "boolean"], "postprocess": concat},
-    {"name": "concat", "symbols": ["boolean"], "postprocess": id},
-    {"name": "boolean$subexpression$1", "symbols": [{"literal":"n"}]},
-    {"name": "boolean$subexpression$1", "symbols": [{"literal":"|"}]},
-    {"name": "boolean", "symbols": ["boolean", "space", "boolean$subexpression$1", "space", "add"], "postprocess": operate},
-    {"name": "boolean", "symbols": ["add"], "postprocess": id},
-    {"name": "add$subexpression$1", "symbols": [{"literal":"+"}]},
-    {"name": "add$subexpression$1", "symbols": [{"literal":"-"}]},
-    {"name": "add", "symbols": ["add", "space", "add$subexpression$1", "space", "multiply"], "postprocess": operate},
-    {"name": "add", "symbols": ["multiply"], "postprocess": id},
-    {"name": "multiply$subexpression$1", "symbols": [{"literal":"*"}]},
-    {"name": "multiply$subexpression$1", "symbols": [{"literal":"/"}]},
-    {"name": "multiply", "symbols": ["multiply", "space", "multiply$subexpression$1", "space", "unaryPrefix"], "postprocess": operate},
-    {"name": "multiply", "symbols": ["unaryPrefix"], "postprocess": id},
-    {"name": "unaryPrefix", "symbols": [{"literal":"+"}, "group"], "postprocess": unaryOperate},
-    {"name": "unaryPrefix", "symbols": [{"literal":"-"}, "group"], "postprocess": unaryOperate},
-    {"name": "unaryPrefix", "symbols": [{"literal":"!"}, "group"], "postprocess": unaryOperate},
-    {"name": "unaryPrefix", "symbols": ["group"], "postprocess": id},
-    {"name": "group", "symbols": [{"literal":"("}, "concat", {"literal":")"}], "postprocess": ([_, g]) => g},
-    {"name": "group", "symbols": ["literal"], "postprocess": id}
+    {"name": "keyExpression", "symbols": ["keyExpression$subexpression$1", "space", "literal"], "postprocess": join},
+    {"name": "keyExpression", "symbols": ["concat"], "postprocess": id}
 ];
 
 export var ParserStart: string = "start";

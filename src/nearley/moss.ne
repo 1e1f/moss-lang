@@ -1,6 +1,7 @@
 @preprocessor typescript
 @lexer lexer
 
+@include "./statement.ne"
 @include "./uri.ne"
 @include "./number.ne"
 @include "./string.ne"
@@ -12,8 +13,8 @@ import { lexer, any, indent, dedent, eol, sol, eof, sof, startRule, space } from
 import { expectedScopeOperator } from './post/errors';
 import { 
 	addPairToMap, addListToMap, pairToMap, listToMap, 
-	kvcToPair, statementToPair,
-	join, concat, operate, unaryOperate, singleWord } from './post/ast';
+	kvcToPair, statementToPair, nuller,
+	join, fork, operate, unaryOperate, singleWord } from './post/ast';
 %}
 
 start
@@ -61,11 +62,11 @@ mapPairConstructor
   		{% ([key, c, s]) => kvcToPair(key, s, c) %}
 
 	# default simple value
-	| (sol | space) context:? statement mapTerminator
-  		{% ([_, c, s]) => statementToPair(s, c) %}
+	| (sol | space) statement mapTerminator
+  		{% ([_, s]) => statementToPair(s) %}
 
-	| sol eol {% () => null %}
-	| sol comment {% () => null %}
+	| sol eol {% nuller %}
+	| sol comment {% nuller %}
 	# error cases
 	| literal pushScope scope
   		{% expectedScopeOperator %}
@@ -74,7 +75,7 @@ inlineContext
 	-> space context {% ([_, d]) => {
 		return d;
 	} %}
-	| space {% id %}
+	| space {% nuller %}
 
 mapTerminator
 	-> (" " | "," | endLine) {% id %}
@@ -120,8 +121,8 @@ listConstructor
 			return [r, {...r_, ...c_}];
 		}%}
 		
-	| sol eol {% () => null %}
-	| sol comment {% () => null %}
+	| sol eol {% nuller %}
+	| sol comment {% nuller %}
 
 multilineString
 	-> stringLine stringLine:* {% ([head, tail]) => {
@@ -158,7 +159,7 @@ stringLine
 pushTypedScope
 	-> space context indent 
 		{% ([space, context]) => context %}
-	| pushScope {% id %}
+	| pushScope {% nuller %}
 
 
 context
@@ -182,37 +183,5 @@ key
 	-> (sol | space) keyExpression ":" {% ([_, k]) => k %}
 
 keyExpression
-	-> ( "=" | "+" | "|" | "&" | "^" | "-" ) space statement {% join %}
+	-> ( "=" | "+" | "|" | "&" | "^" | "-" ) space literal {% join %}
 	| concat {% id %}
-
-# statement
-statement
-	-> concat {% id %}
-
-# Operators
-
-concat
-	-> concat space boolean {% concat %}
-	| boolean {% id %}
-
-boolean
-	-> boolean space ( "n" | "|" ) space add {% operate %}
-	| add {% id %}
-
-add
-	-> add space ( "+"|"-" ) space multiply {% operate %}
-	| multiply {% id %}
-
-multiply
-	-> multiply space ("*"|"/") space unaryPrefix {% operate %}
-	| unaryPrefix {% id %}
-
-unaryPrefix
-	-> "+" group {% unaryOperate %}
-	| "-" group {% unaryOperate %}
-	| "!" group {% unaryOperate %}
-	| group {% id %}
-
-group
-	-> "(" concat ")" {% ([_, g]) => g %}
-	| literal {% id %}

@@ -7,12 +7,6 @@ urlSafePlusEncodedChars
 	| "&" "a" "m" "p" ";" {% join %}
 	| urlSafeChar {% id %}
 
-literal
-	-> string {% ([v]) => [v, {string: true}] %}
-	| singleWord {% ([v]) => [v, {string: true}] %}
-	| uri {% ([v]) => [v, {uri: true}] %}
-	| number {% ([v]) => [v, {number: true}] %}
-
 singleWord
 	-> [a-zA-Z$_] [a-zA-Z0-9$_]:*
 		{% singleWord %}

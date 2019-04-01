@@ -8,14 +8,19 @@ import { clone, get, set, mapToObject } from 'typed-json-transform';
 
 export const unaryOperate = ([op, rhs]: Nearley.TokenList) => ({ [op]: rhs });
 
-export const operate = ([lhs, s1, op, s2, rhs]: Nearley.TokenList) => ({ [op]: [lhs, rhs] })
+export const operate = ([lhs, s1, [op], s2, rhs]: Nearley.TokenList) => fork([lhs, op.text, rhs]);
 
-export const concat = ([lhs, s1, rhs]: Nearley.TokenList) => ({ '<<': [lhs, rhs] })
+export const fork = ([lhs, op, rhs]: Nearley.TokenList) => {
+    const [l, l_] = lhs;
+    const [r, r_] = rhs;
+    return ([[(op == ' ' ? '<<' : op), l, r], [{ operator: true }, l_, r_]]);
+}
 
 type ASTMap = Map<string | number, ASTPair>
 type ASTObject = { [x: string]: any }
 type ASTPair = Array<Map<string | number, any> | ASTObject>
 
+export const nuller = (): void => null;
 
 export const _addPair = ([l, l_]: ASTPair, [[k, k_], [v, v_]]: Nearley.TokenList) => {
     if (l.get(k)) {
@@ -57,18 +62,23 @@ export const pairToMap = ([r]: Nearley.TokenList) => {
 
 export const kvcToPair = ([k, k_]: any, statement: any, cPair: any) => {
     if (cPair) {
+        console.log('mapToObject', cPair);
         const [c, c_] = cPair;
-        console.log({cPair});
         const context = mapToObject(c);
         return [[k, { key: true, ...k_ }], [statement[0], { ...statement[1], ...context }]];
     }
-    console.log('no context', statement);
     return [[k, { key: true, ...k_ }], statement];
 }
 
-export const statementToPair = ([s, s_]: any, c_: any) => {
-    const pair = [[s, { key: true, ...s_ }], [true, { boolean: true, ...c_ }]];
-    return pair;
+export const statementToPair = (statement: any, cPair: any) => {
+    const [s, s_] = statement
+    if (cPair) {
+        console.log('statementToPair', s, s, cPair)
+        const [c, c_] = cPair;
+        return kvcToPair([s, null], s, { boolean: true, ...c });
+    }
+    console.log('statementToPair no context', s, s)
+    return [[s, { key: true, ...s_ }], [true, { boolean: true }]];
 }
 
 export const addListToMap = ([_l, r]: Nearley.TokenList) => {
