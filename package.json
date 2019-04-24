@@ -41,11 +41,11 @@
         "@types/nearley": "^2.11.0",
         "@types/node": "^10",
         "babel-loader": "^8.0.5",
-        "nearley": "^2.16.0",
         "typescript": "3.2.2"
     },
     "dependencies": {
         "moo": "^0.5.0",
+        "nearley": "^2.16.0",
         "typed-json-transform": "^0.24.6"
     }
 }

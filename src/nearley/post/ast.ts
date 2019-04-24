@@ -78,6 +78,7 @@ export const statementToPair = (statement: any, cPair: any) => {
         return kvcToPair([s, null], s, { boolean: true, ...c });
     }
     console.log('statementToPair no context', s, s)
+    
     return [[s, { key: true, ...s_ }], [true, { boolean: true }]];
 }
 

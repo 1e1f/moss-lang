@@ -1,5 +1,6 @@
 /// <reference path="../../interfaces/index.d.ts" />
 
+// import moo from 'moo';
 const moo = require('moo');
 
 const makeToken = (type: string, text: string, sourceMap?: Nearley.SourceMap, indent?: number) =>
